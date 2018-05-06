@@ -12,7 +12,7 @@ class AccessDBConnection {
         val log = LogManager.getLogger(AccessDBConnection::class.java)
 
         //val url = "jdbc:ucanaccess://D:/dev/jls_projects/m-100_legacy_project/db/snitz_forums_2000_20171220.mdb"
-        val url = "jdbc:ucanaccess://D:/dev/jls_projects/m-100_legacy_project/db/snitz_forums_2000_20171220.accdb"
+         val url = "jdbc:ucanaccess://D:/dev/jls_projects/m-100_legacy_project/db/snitz_forums_2000_20171220.accdb"
 
         @JvmStatic
         var conn: Connection = DriverManager.getConnection(url)

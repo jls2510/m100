@@ -1,39 +1,43 @@
-package com.m100.test
+package com.m100
 
-import com.healthmarketscience.jackcess.Column
 import com.healthmarketscience.jackcess.CursorBuilder
 import com.healthmarketscience.jackcess.DatabaseBuilder
 import com.healthmarketscience.jackcess.IndexCursor
-import com.m100.service.AccessDBConnection
-import java.io.File
-import java.sql.Connection
-import java.sql.SQLException
-import java.util.*
+import org.apache.logging.log4j.LogManager
 import org.kefirsf.bb.BBProcessorFactory
-import org.kefirsf.bb.TextProcessor
+import java.io.File
+import java.util.*
 
-
-class TestQueries {
+class ProcessForumMessages {
 
     companion object {
+
+        val log = LogManager.getLogger(ProcessForumMessages::class.java)
 
         private val snitzDatabaseURL = "D:/dev/jls_projects/m-100_legacy_project/db/snitz_forums_2000_20171220.scratch.mdb"
 
         @JvmStatic
         fun main(args: Array<String>) {
 
-            //fixTextIssues()
-            convertBBCodeToHtml()
+
+            fixTextIssues("FORUM_TOPICS", "TOPIC_ID", "T_MESSAGE")
+            convertBBCodeToHtml("FORUM_TOPICS", "TOPIC_ID", "T_MESSAGE")
+
+            fixTextIssues("FORUM_REPLY", "REPLY_ID", "R_MESSAGE")
+            convertBBCodeToHtml("FORUM_REPLY", "REPLY_ID", "R_MESSAGE")
+
 
         } // main()
 
 
-        fun convertBBCodeToHtml() {
+        fun convertBBCodeToHtml(tableName: String, idColumnName: String, messageColumnName: String) {
+
+            log.debug("convertBBCodeToHtml() for tableAndColumn ")
 
             // use Jackcess
             val db = DatabaseBuilder.open(File(snitzDatabaseURL))
 
-            val table = db.getTable("FORUM_TOPICS")
+            val table = db.getTable(tableName)
             val cursor: IndexCursor = CursorBuilder.createCursor(table.primaryKeyIndex)
 
             // KefirBB processor for BBCode to HTML conversion
@@ -42,7 +46,16 @@ class TestQueries {
             var updatedMessageCount = 0
             for (row in cursor) {
 
-                var message: String = row["T_MESSAGE"].toString()
+                log.debug("Row ID: " + row[idColumnName])
+
+                // reply 15242 has a problem
+                if (tableName.equals("FORUM_REPLY") && row[idColumnName]!!.equals(15242))
+                {
+                    log.debug("***** Skipping Reply 15242")
+                    continue
+                }
+
+                var message: String = row[messageColumnName].toString()
 
                 // replace BBCode markup with HTML
                 // if there are any "[" characters then we will assume there is BBCode markup
@@ -52,32 +65,36 @@ class TestQueries {
                     message = processor.process(message)
 
                     // save and update row
-                    row.set("T_MESSAGE", message)
+                    row.set(messageColumnName, message)
                     updatedMessageCount++
-                    println(message)
-                    println("........................................................................................")
-                    //table.updateRow(row)
+                    log.debug(message)
+                    log.debug("........................................................................................")
+                    table.updateRow(row)
                 }
 
             } // end iteration over rows
 
-            println("Number of updated messages = $updatedMessageCount")
+            log.debug("Number of updated messages = $updatedMessageCount")
 
 
         } // convertBBCodeToHtml()
 
 
-        fun fixNameSpaces() {
+        fun fixTextIssues(tableName: String, idColumnName: String, messageColumnName: String) {
+
+            log.debug("fixTextIssues() for table " + tableName)
 
             // use Jackcess
             val db = DatabaseBuilder.open(File(snitzDatabaseURL))
 
-            val table = db.getTable("FORUM_TOPICS")
+            val table = db.getTable(tableName)
             val cursor: IndexCursor = CursorBuilder.createCursor(table.primaryKeyIndex)
 
             var updatedMessageCount = 0
 
             for (row in cursor) {
+
+                log.debug("Row ID: " + row[idColumnName])
 
                 val replacementPairs: ArrayList<Pair<String, String>> = ArrayList()
 
@@ -117,7 +134,10 @@ class TestQueries {
                 replacementPairs.add(Pair("/The Tsukiji Kid/", "/The_Tsukiji_Kid/"))
                 replacementPairs.add(Pair("/Wallace Wheeler/", "/Wallace_Wheeler/"))
 
-                var message: String = row["T_MESSAGE"].toString()
+                // I saw some of these that might be an issue - space before close image tag
+                replacementPairs.add(Pair(" [/img]", "[/img]"))
+
+                var message: String = row[messageColumnName].toString()
 
                 // do replacements
                 replacementPairs.forEach { replacementPair ->
@@ -125,53 +145,19 @@ class TestQueries {
                     if (message.indexOf(replacementPair.first) > 0) {
 
                         message = message.replace(replacementPair.first, replacementPair.second)
-                        row.set("T_MESSAGE", message)
+                        row.set(messageColumnName, message)
                         updatedMessageCount++
-                        //println(message)
+                        log.debug(message)
                         table.updateRow(row)
                     }
                 }
 
             } // end iteration over rows
 
-            println("Number of updated messages = $updatedMessageCount")
-
+            log.debug("Number of fixed text issues = $updatedMessageCount")
 
         } // fixTextIssues()
 
-
-        fun query4() {
-
-            // use Jackcess
-            val db = DatabaseBuilder.open(File(snitzDatabaseURL))
-
-            val table = db.getTable("FORUM_TOPICS")
-            val cursor: IndexCursor = CursorBuilder.createCursor(table.primaryKeyIndex)
-            //for (row in cursor) {
-            cursor.findFirstRow(Collections.singletonMap("TOPIC_ID", 9696))
-
-            val row = cursor.getCurrentRow()
-//                println(String.format("T_SUBJECT=%s, T_MESSAGE='%s'.",
-//                        row["T_SUBJECT"], row["T_MESSAGE"]))
-
-            val message: String = row["T_MESSAGE"].toString()
-
-            val forumImgTagBegin: String = "[img]http://www.m-100.cc/forum/uploaded"
-            val forumImgTagEnd: String = "[/img]"
-
-//            for (column in table.columns) {
-//                println(column.columnIndex.toString() + ": " + column.name + ": " + column.type)
-//            }
-
-            // this works!
-            row.set("T_LAST_EDIT", "Hello")
-            table.updateRow(row)
-
-            //cursor.updateCurrentRow()
-
-        } // query4()
-
-
-    } // companion object
+    }
 
 }
