@@ -9,25 +9,121 @@ import java.io.File
 import java.sql.Connection
 import java.sql.SQLException
 import java.util.*
+import org.kefirsf.bb.BBProcessorFactory
+import org.kefirsf.bb.TextProcessor
 
 
 class TestQueries {
 
     companion object {
 
+        private val snitzDatabaseURL = "D:/dev/jls_projects/m-100_legacy_project/db/snitz_forums_2000_20171220.scratch.mdb"
+
         @JvmStatic
         fun main(args: Array<String>) {
 
-            query4()
+            query6()
 
         } // main()
+
+
+        fun query6() {
+
+            // use Jackcess
+            val db = DatabaseBuilder.open(File(snitzDatabaseURL))
+
+            val table = db.getTable("FORUM_TOPICS")
+            val cursor: IndexCursor = CursorBuilder.createCursor(table.primaryKeyIndex)
+
+            // KefirBB processor for BBCode to HTML conversion
+            val processor = BBProcessorFactory.getInstance().create()
+
+            var updatedMessageCount = 0
+            for (row in cursor) {
+
+                val forumImgTag_1: String = "[img]http://www.m-100.co/forum/uploaded"
+                val forumImgTag_2: String = "[img]http://www.m-100.cc/forum/uploaded"
+                val forumImgTagTestReplacement: String = "[xxxTestingxxx]"
+                val forumImgTagEnd: String = "[/img]"
+
+                var message: String = row["T_MESSAGE"].toString()
+
+                var messageUpdated = false
+
+                // replace BBCode markup with HTML
+                // if there are any "[" characters then we will assume there is BBCode markup
+                if (message.indexOf("[") > 0) {
+
+                    // convert BBCode to HTML
+                    message = processor.process(message)
+
+                    // save and update row
+                    row.set("T_MESSAGE", message)
+                    updatedMessageCount++
+                    println(message)
+                    //table.updateRow(row)
+                }
+
+            } // end iteration over rows
+
+            println("Number of updated messages = $updatedMessageCount")
+
+
+        } // query6()
+
+
+        fun query5() {
+
+            // use Jackcess
+            val db = DatabaseBuilder.open(File(snitzDatabaseURL))
+
+            val table = db.getTable("FORUM_TOPICS")
+            val cursor: IndexCursor = CursorBuilder.createCursor(table.primaryKeyIndex)
+
+            var updatedMessageCount = 0
+            for (row in cursor) {
+
+                val forumImgTag_1: String = "[img]http://www.m-100.co/forum/uploaded"
+                val forumImgTag_2: String = "[img]http://www.m-100.cc/forum/uploaded"
+                val forumImgTagTestReplacement: String = "[xxxTestingxxx]"
+                val forumImgTagEnd: String = "[/img]"
+
+                var message: String = row["T_MESSAGE"].toString()
+
+                var messageUpdated = false
+
+                // check for first string
+                if (message.indexOf(forumImgTag_1) > 0) {
+                    message = message.replace(forumImgTag_1, forumImgTagTestReplacement)
+                    messageUpdated = true
+                    row.set("T_MESSAGE", message)
+                }
+                // check for second string
+                if (message.indexOf(forumImgTag_2) > 0) {
+                    message = message.replace(forumImgTag_2, forumImgTagTestReplacement)
+                    messageUpdated = true
+                    row.set("T_MESSAGE", message)
+                }
+
+                // update the row if necessary
+                if (messageUpdated) {
+                    updatedMessageCount++
+                    //println(message)
+                    table.updateRow(row)
+                }
+
+            } // end iteration over rows
+
+            println("Number of updated messages = $updatedMessageCount")
+
+
+        } // query5()
 
 
         fun query4() {
 
             // use Jackcess
-            val url = "D:/dev/jls_projects/m-100_legacy_project/db/snitz_forums_2000_20171220.mdb"
-            val db = DatabaseBuilder.open(File(url))
+            val db = DatabaseBuilder.open(File(snitzDatabaseURL))
 
             val table = db.getTable("FORUM_TOPICS")
             val cursor: IndexCursor = CursorBuilder.createCursor(table.primaryKeyIndex)
@@ -59,8 +155,7 @@ class TestQueries {
         fun query3() {
 
             // use Jackcess
-            val url = "D:/dev/jls_projects/m-100_legacy_project/db/snitz_forums_2000_20171220.accdb"
-            val db = DatabaseBuilder.open(File(url))
+            val db = DatabaseBuilder.open(File(snitzDatabaseURL))
 
             val table = db.getTable("FORUM_TOPICS")
             val cursor: IndexCursor = CursorBuilder.createCursor(table.primaryKeyIndex)
@@ -71,14 +166,17 @@ class TestQueries {
 //                println(String.format("T_SUBJECT=%s, T_MESSAGE='%s'.",
 //                        row["T_SUBJECT"], row["T_MESSAGE"]))
 
-                val message: String = row["T_MESSAGE"].toString()
+                var message: String = row["T_MESSAGE"].toString()
 
                 val forumImgTagBegin: String = "[img]http://www.m-100.cc/forum/uploaded"
+                val forumImgTagTestReplacement: String = "[xxxTestingxxx]"
                 val forumImgTagEnd: String = "[/img]"
 
                 if (message.indexOf(forumImgTagBegin) > 0) {
                     val topicIdCol: Column = table.getColumn("TOPIC_ID")
+                    message = message.replace(forumImgTagBegin, forumImgTagTestReplacement)
                     println(message)
+                    return // only do it once
                 }
 
                 //cursor.updateCurrentRow()
@@ -90,8 +188,7 @@ class TestQueries {
         fun query2() {
 
             // use Jackcess
-            val url = "D:/dev/jls_projects/m-100_legacy_project/db/snitz_forums_2000_20171220.accdb"
-            val db = DatabaseBuilder.open(File(url))
+            val db = DatabaseBuilder.open(File(snitzDatabaseURL))
 
             val table = db.getTable("FORUM_MEMBERS")
 
@@ -138,4 +235,5 @@ class TestQueries {
         }
 
     } // companion object
+
 }
