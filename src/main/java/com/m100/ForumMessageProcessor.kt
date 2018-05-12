@@ -17,7 +17,7 @@ class ForumMessageProcessor {
         private val snitzDatabaseURL = "D:/dev/jls_projects/m-100_legacy_project/db/snitz_forums_2000_20171220.scratch.mdb"
 
         @JvmStatic
-        fun main(args: Array<String>) {
+        public fun main(args: Array<String>) {
 
 
             //fixTextIssues("FORUM_TOPICS", "TOPIC_ID", "T_MESSAGE")
