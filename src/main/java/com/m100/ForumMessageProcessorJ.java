@@ -12,23 +12,39 @@ import java.util.HashMap;
 import java.util.Iterator;
 
 public final class ForumMessageProcessorJ {
-    private static final Logger log = LogManager.getLogger(ForumMessageProcessorJ.class);
-    private static final String snitzDatabaseURL = "D:/dev/jls_projects/m-100_legacy_project/db/snitz_forums_2000_20171220.scratch.mdb";
+    private static final Logger log =
+        LogManager.getLogger(ForumMessageProcessorJ.class);
 
     /**
      * @param args
      */
     public static final void main(String[] args) {
 
-        try {
-            //fixTextIssues("FORUM_TOPICS", "TOPIC_ID", "T_MESSAGE");
-            //convertBBCodeToHtml("FORUM_TOPICS", "TOPIC_ID", "T_MESSAGE");
+        log.info("ForumMessageProcessor processing file: "
+            + Constants.snitzDatabaseURL + "\n");
 
-            fixTextIssues("FORUM_REPLY", "REPLY_ID", "R_MESSAGE");
-            //convertBBCodeToHtml("FORUM_REPLY", "REPLY_ID", "R_MESSAGE");
-        } catch (Exception e) {
+        try {
+            fixTextIssues("FORUM_TOPICS", "TOPIC_ID", "T_MESSAGE");
+            convertBBCodeToHtml("FORUM_TOPICS", "TOPIC_ID", "T_MESSAGE");
+            revertHtml("FORUM_TOPICS", "TOPIC_ID", "T_MESSAGE");
+            swapUrls("FORUM_TOPICS", "TOPIC_ID", "T_MESSAGE");
+            // run AFTER swapUrls
+            fixUpImgTags("FORUM_TOPICS", "TOPIC_ID", "T_MESSAGE");
+
+             fixTextIssues("FORUM_REPLY", "REPLY_ID", "R_MESSAGE");
+             convertBBCodeToHtml("FORUM_REPLY", "REPLY_ID", "R_MESSAGE");
+             revertHtml("FORUM_REPLY", "REPLY_ID", "R_MESSAGE");
+             swapUrls("FORUM_REPLY", "REPLY_ID", "R_MESSAGE");
+             // run AFTER swapUrls
+             fixUpImgTags("FORUM_REPLY", "REPLY_ID", "R_MESSAGE");
+
+        }
+        catch (Exception e) {
             e.printStackTrace();
         }
+
+        log.info("\nForumMessageProcessor finished processing file: "
+            + Constants.snitzDatabaseURL);
 
     } // main()
 
@@ -38,25 +54,32 @@ public final class ForumMessageProcessorJ {
      * @param messageColumnName
      * @throws IOException
      */
-    private static void convertBBCodeToHtml(String tableName, String idColumnName, String messageColumnName) throws IOException {
-        
-        if (tableName == null || idColumnName == null || messageColumnName == null) {
+    private static void convertBBCodeToHtml(String tableName,
+        String idColumnName, String messageColumnName) throws IOException {
+
+        log.info("convertBBCodeToHtml() for tableAndColumn " + tableName + "; "
+            + messageColumnName);
+
+        if (tableName == null || idColumnName == null
+            || messageColumnName == null) {
             log.error("Parameters must not be null.  Cannot continue.");
             return;
         }
 
-        log.debug("convertBBCodeToHtml() for tableAndColumn " + tableName + "; " + messageColumnName);
-
         // use Jackcess
-        final Database db = DatabaseBuilder.open(new File(snitzDatabaseURL));
+        final Database db =
+            DatabaseBuilder.open(new File(Constants.snitzDatabaseURL));
         final Table table = db.getTable(tableName);
-        final IndexCursor cursor = CursorBuilder.createCursor(table.getPrimaryKeyIndex());
+        final IndexCursor cursor =
+            CursorBuilder.createCursor(table.getPrimaryKeyIndex());
 
         // KefirBB processor for BBCode to HTML conversion
-        final TextProcessor processor = BBProcessorFactory.getInstance().create();
-        int updatedMessageCount = 0;
-        final Iterator<Row> cursorIterator = cursor.iterator();
+        final TextProcessor processor =
+            BBProcessorFactory.getInstance().create();
 
+        int updatedMessageCount = 0;
+
+        final Iterator<Row> cursorIterator = cursor.iterator();
         while (cursorIterator.hasNext()) {
             final Row row = (Row) cursorIterator.next();
             log.debug("Row ID: " + row.get(idColumnName));
@@ -71,29 +94,32 @@ public final class ForumMessageProcessorJ {
                 }
             }
 
-            String message = String.valueOf(row.get(messageColumnName));
+            String fieldText = String.valueOf(row.get(messageColumnName));
+            String revisedFieldText = fieldText;
 
             // replace BBCode markup with HTML
-            // if there are any "[" characters then we will assume there is BBCode markup
-            if (message.contains("[")) {
+            // if there are any "[" characters then we will assume there is
+            // BBCode markup
 
-                // convert BBCode to HTML (KefirBB)
-                message = processor.process(message);
+            // convert BBCode to HTML (KefirBB)
+            revisedFieldText = processor.process(revisedFieldText);
 
+            if (!revisedFieldText.equals(fieldText)) {
                 // save and update row
-                row.put(messageColumnName, message);
+                row.put(messageColumnName, revisedFieldText);
 
                 ++updatedMessageCount;
-                log.debug(message);
-                log.debug("........................................................................................");
+                log.debug(revisedFieldText);
+                log.debug(
+                    "........................................................................................");
                 table.updateRow(row);
             }
         }
 
-        log.debug("Number of updated messages = " + updatedMessageCount);
-        return;
-    } // convertBBCodeToHtml()
+        log.info("Number of BBCode Replacements (entire messages) = "
+            + updatedMessageCount);
 
+    } // convertBBCodeToHtml()
 
     /**
      * @param tableName
@@ -101,94 +127,241 @@ public final class ForumMessageProcessorJ {
      * @param messageColumnName
      * @throws IOException
      */
-    private static void fixTextIssues(String tableName, String idColumnName, String messageColumnName) throws IOException {
-        if (tableName == null || idColumnName == null || messageColumnName == null) {
+    private static void fixTextIssues(String tableName, String idColumnName,
+        String messageColumnName) throws IOException {
+
+        log.info("fixTextIssues() for table and column " + tableName + "; "
+            + messageColumnName);
+
+        if (tableName == null || idColumnName == null
+            || messageColumnName == null) {
             log.error("Parameters must not be null.  Cannot continue.");
             return;
         }
 
-        log.debug("fixTextIssues() for table and column " + tableName + "; " + messageColumnName);
+        // the spaces in names within image tags break the replacement process
+        // we have to replace the spaces with underscores
+        // we will also have to do the same in the image folders
+        final HashMap<String, String> replacementPairs =
+            new HashMap<String, String>();
+        replacementPairs.put("/Aaron H/", "/Aaron-H/");
+        replacementPairs.put("/Alan Buckley/", "/Alan-Buckley/");
+        replacementPairs.put("/Alex E/", "/Alex-E/");
+        replacementPairs.put("/Anthony Baron/", "/Anthony-Baron/");
+        replacementPairs.put("/Art Love/", "/Art-Love/");
+        replacementPairs.put("/Be Free/", "/Be-Free/");
+        replacementPairs.put("/Bill Kaidbey/", "/Bill-Kaidbey/");
+        replacementPairs.put("/chip pischel/", "/chip-pischel/");
+        replacementPairs.put("/Chris Johnson/", "/Chris-Johnson/");
+        replacementPairs.put("/Danny W/", "/Danny-W/");
+        replacementPairs.put("/gary kuster/", "/gary-kuster/");
+        replacementPairs.put("/Grant V/", "/Grant-V/");
+        replacementPairs.put("/Jack English/", "/Jack-English/");
+        replacementPairs.put("/james lawson/", "/james-lawson/");
+        replacementPairs.put("/john erbe/", "/john-erbe/");
+        replacementPairs.put("/Joseph Long/", "/Joseph-Long/");
+        replacementPairs.put("/Kai McRae/", "/Kai-McRae/");
+        replacementPairs.put("/Martin L/", "/Martin-L/");
+        replacementPairs.put("/Michael Jekot/", "/Michael-Jekot/");
+        replacementPairs.put("/Nick Papadakis/", "/Nick-Papadakis/");
+        replacementPairs.put("/Phil OBrien/", "/Phil-OBrien/");
+        replacementPairs.put("/Robert Jenkins/", "/Robert-Jenkins/");
+        replacementPairs.put("/Robert Webster/", "/Robert-Webster/");
+        replacementPairs.put("/Ron B/", "/Ron-B/");
+        replacementPairs.put("/S class/", "/S-class/");
+        replacementPairs.put("/Silver Baron/", "/Silver-Baron/");
+        replacementPairs.put("/Squiggle Dog/", "/Squiggle-Dog/");
+        replacementPairs.put("/Stefan Matthee/", "/Stefan-Matthee/");
+        replacementPairs.put("/Stu Hammel/", "/Stu-Hammel/");
+        replacementPairs.put("/T.J. Woods/", "/T.J.-Woods/");
+        replacementPairs.put("/The Tsukiji Kid/", "/The-Tsukiji-Kid/");
+        replacementPairs.put("/Wallace Wheeler/", "/Wallace-Wheeler/");
 
-        // use Jackcess
-        final Database db = DatabaseBuilder.open(new File(snitzDatabaseURL));
+        int updatedMessageCount = doReplacements(tableName, idColumnName,
+            messageColumnName, replacementPairs);
+        log.info("Number of text fixes = " + updatedMessageCount);
 
-        final Table table = db.getTable(tableName);
-        final IndexCursor cursor = CursorBuilder.createCursor(table.getPrimaryKeyIndex());
-        int updatedMessageCount = 0;
+    } // fixTextIssues()
+
+    /**
+     * @param tableName
+     * @param idColumnName
+     * @param messageColumnName
+     * @throws IOException
+     */
+    private static void revertHtml(String tableName, String idColumnName,
+        String messageColumnName) throws IOException {
+
+        log.info("revertHtml() for table and column " + tableName + "; "
+            + messageColumnName);
+
+        if (tableName == null || idColumnName == null
+            || messageColumnName == null) {
+            log.error("Parameters must not be null.  Cannot continue.");
+            return;
+        }
+
+        final HashMap<String, String> replacementPairs =
+            new HashMap<String, String>();
+        replacementPairs.put("&amp;", "&");
+        replacementPairs.put("&gt;", ">");
+        replacementPairs.put("&lt;", "<");
+        replacementPairs.put("&apos;", "'");
+        replacementPairs.put("&quot;", "\"");
+
+        int updatedMessageCount = doReplacements(tableName, idColumnName,
+            messageColumnName, replacementPairs);
+        log.info("Number of html reversions = " + updatedMessageCount);
+
+    } // revertHtml()
+
+    /**
+     * @param tableName
+     * @param idColumnName
+     * @param messageColumnName
+     * @throws IOException
+     */
+    private static void swapUrls(String tableName, String idColumnName,
+        String messageColumnName) throws IOException {
+
+        log.info("swapUrls() for table and column " + tableName + "; "
+            + messageColumnName);
+
+        if (tableName == null || idColumnName == null
+            || messageColumnName == null) {
+            log.error("Parameters must not be null.  Cannot continue.");
+            return;
+        }
 
         // the spaces in names within image tags break the replacement process
         // we have to replace the spaces with underscores
         // we will also have to do the same in the image folders
-        final HashMap<String, String> replacementPairs = new HashMap<String, String>();
-        replacementPairs.put("/Aaron H/", "/Aaron_H/");
-        replacementPairs.put("/Alan Buckley/", "/Alan_Buckley/");
-        replacementPairs.put("/Alex E/", "/Alex_E/");
-        replacementPairs.put("/Anthony Baron/", "/Anthony_Baron/");
-        replacementPairs.put("/Art Love/", "/Art_Love/");
-        replacementPairs.put("/Be Free/", "/Be_Free/");
-        replacementPairs.put("/Bill Kaidbey/", "/Bill_Kaidbey/");
-        replacementPairs.put("/chip pischel/", "/chip_pischel/");
-        replacementPairs.put("/Chris Johnson/", "/Chris_Johnson/");
-        replacementPairs.put("/Danny W/", "/Danny_W/");
-        replacementPairs.put("/gary kuster/", "/gary_kuster/");
-        replacementPairs.put("/Grant V/", "/Grant_V/");
-        replacementPairs.put("/Jack English/", "/Jack_English/");
-        replacementPairs.put("/james lawson/", "/james_lawson/");
-        replacementPairs.put("/john erbe/", "/john_erbe/");
-        replacementPairs.put("/Joseph Long/", "/Joseph_Long/");
-        replacementPairs.put("/Kai McRae/", "/Kai_McRae/");
-        replacementPairs.put("/Martin L/", "/Martin_L/");
-        replacementPairs.put("/Michael Jekot/", "/Michael_Jekot/");
-        replacementPairs.put("/Nick Papadakis/", "/Nick_Papadakis/");
-        replacementPairs.put("/Phil OBrien/", "/Phil_OBrien/");
-        replacementPairs.put("/Robert Jenkins/", "/Robert_Jenkins/");
-        replacementPairs.put("/Robert Webster/", "/Robert_Webster/");
-        replacementPairs.put("/Ron B/", "/Ron_B/");
-        replacementPairs.put("/S class/", "/S_class/");
-        replacementPairs.put("/Silver Baron/", "/Silver_Baron/");
-        replacementPairs.put("/Squiggle Dog/", "/Squiggle_Dog/");
-        replacementPairs.put("/Stefan Matthee/", "/Stefan_Matthee/");
-        replacementPairs.put("/Stu Hammel/", "/Stu_Hammel/");
-        replacementPairs.put("/T.J. Woods/", "/T.J._Woods/");
-        replacementPairs.put("/The Tsukiji Kid/", "/The_Tsukiji_Kid/");
-        replacementPairs.put("/Wallace Wheeler/", "/Wallace_Wheeler/");
-        replacementPairs.put(" [/img]", "[/img]");
-        // other issues
-        replacementPairs.put("&amp;", "&");
-        replacementPairs.put("&gt;", ">");
-        replacementPairs.put("&lt;", "<");
-        Iterator<Row> cursorIterator = cursor.iterator();
+        final HashMap<String, String> replacementPairs =
+            new HashMap<String, String>();
+
+        // change URL for legacy forum images
+        String oldLegacyForumImagesLocation1 =
+            Constants.oldLegacyForumImagesURL1 + "/forum/uploaded";
+        String oldLegacyForumImagesLocation2 =
+            Constants.oldLegacyForumImagesURL2 + "/forum/uploaded";
+        String newLegacyForumImagesLocation =
+            Constants.newLegacyForumImagesURL + "/forum/uploaded";
+        replacementPairs.put(oldLegacyForumImagesLocation1,
+            newLegacyForumImagesLocation);
+        replacementPairs.put(oldLegacyForumImagesLocation2,
+            newLegacyForumImagesLocation);
+
+        int updatedMessageCount = doReplacements(tableName, idColumnName,
+            messageColumnName, replacementPairs);
+        log.info("Number of urls swapped = " + updatedMessageCount);
+
+    } // swapUrls()
+
+    /**
+     * @param tableName
+     * @param idColumnName
+     * @param messageColumnName
+     * @throws IOException
+     */
+    private static void fixUpImgTags(String tableName, String idColumnName,
+        String messageColumnName) throws IOException {
+
+        log.info("fixUpImgTags() for table and column " + tableName + "; "
+            + messageColumnName);
+
+        if (tableName == null || idColumnName == null
+            || messageColumnName == null) {
+            log.error("Parameters must not be null.  Cannot continue.");
+            return;
+        }
+
+        // the spaces in names within image tags break the replacement process
+        // we have to replace the spaces with underscores
+        // we will also have to do the same in the image folders
+        final HashMap<String, String> replacementPairs =
+            new HashMap<String, String>();
+
+        // fix up some leftover [img] tags
+
+        // [img]http://legacy-forum-images.m-100.co
+        String bad = "\\[img\\]http";
+        String good = "<img src=\"http";
+        replacementPairs.put(bad, good);
+
+        // .jpg[/img]
+        bad = "jpg\\[/img\\]";
+        good = "jpg\"/>";
+        replacementPairs.put(bad, good);
+
+        bad = "JPG\\[/img\\]";
+        good = "JPG\"/>";
+        replacementPairs.put(bad, good);
+
+        int updatedMessageCount = doReplacements(tableName, idColumnName,
+            messageColumnName, replacementPairs);
+        log.info("Number of img tags fixed = " + updatedMessageCount);
+
+    } // fixUpImgTags()
+
+    /**
+     * @param tableName
+     * @param idColumnName
+     * @param messageColumnName
+     * @return the number or replacements
+     * @throws IOException
+     */
+    private static int doReplacements(String tableName, String idColumnName,
+        String messageColumnName, HashMap<String, String> replacementPairs)
+        throws IOException {
+
+        log.info("doReplacements() for table and column " + tableName + "; "
+            + messageColumnName);
+
+        if (tableName == null || idColumnName == null
+            || messageColumnName == null || replacementPairs == null) {
+            log.error("Parameters must not be null.  Cannot continue.");
+            return 0;
+        }
+
+        // use Jackcess
+        final Database db =
+            DatabaseBuilder.open(new File(Constants.snitzDatabaseURL));
+
+        final Table table = db.getTable(tableName);
+        final IndexCursor cursor =
+            CursorBuilder.createCursor(table.getPrimaryKeyIndex());
+
+        int replacementsDone = 0;
 
         // iterate over the rows
+        Iterator<Row> cursorIterator = cursor.iterator();
         while (cursorIterator.hasNext()) {
             final Row row = (Row) cursorIterator.next();
             log.debug("Row ID: " + row.get(idColumnName));
-            String message = String.valueOf(row.get(messageColumnName));
-            boolean needsUpdate = false;
+            String fieldText = String.valueOf(row.get(messageColumnName));
+            // boolean needsUpdate = false;
 
             // iterate over replacementPairs; do replacements
-            Iterator<String> replacementPairsIterator = replacementPairs.keySet().iterator();
+            Iterator<String> replacementPairsIterator =
+                replacementPairs.keySet().iterator();
+            String revisedFieldText = fieldText;
             while (replacementPairsIterator.hasNext()) {
                 final String key = replacementPairsIterator.next();
                 final String value = replacementPairs.get(key);
 
-                if (message.contains(key)) {
-                    log.debug("found: " + key);
-                    message = message.replaceAll(key, value);
-                    needsUpdate = true;
-                }
+                revisedFieldText = revisedFieldText.replaceAll(key, value);
             }
 
-            if (needsUpdate) {
-                row.put(messageColumnName, message);
+            if (!revisedFieldText.equals(fieldText)) {
+                row.put(messageColumnName, revisedFieldText);
                 table.updateRow(row);
-                ++updatedMessageCount;
-                log.debug(message);
+                ++replacementsDone;
+                log.debug(revisedFieldText);
             }
         }
 
-        log.debug("Number of fixed text issues = " + updatedMessageCount);
+        return replacementsDone;
 
-    } // fixTextIssues()
+    } // doReplacements()
 
 }
