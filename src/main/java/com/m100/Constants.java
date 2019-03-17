@@ -7,7 +7,7 @@ import org.apache.commons.lang3.tuple.Triple;
 public class Constants {
 
     static final String snitzDatabaseURL =
-        "D:/ping23_projects/m-100/db/snitz_forums_2000.2018-09-04.dummy.mdb";
+        "D:/ping23_projects/m-100/db/db-processing-2019-03-17/snitz_forums_2000.2019-03-17.processed.mdb";
 
     // static final String snitzDatabaseURL =
     // "D:/ping23_projects/m-100/db/snitz_forums_2000_20171220.scratch.mdb";
