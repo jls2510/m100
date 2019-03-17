@@ -15,13 +15,15 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<kotlin.version>1.2.31</kotlin.version>
+		<!-- <jackcess.version>2.1.11</jackcess.version> -->
+		<jackcess.version>3.0.0</jackcess.version>
 	</properties>
 
 	<dependencies>
 		<dependency>
 			<groupId>com.healthmarketscience.jackcess</groupId>
 			<artifactId>jackcess</artifactId>
-			<version>2.1.11</version>
+			<version>${jackcess.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>net.sf.ucanaccess</groupId>

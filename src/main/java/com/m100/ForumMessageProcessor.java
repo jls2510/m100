@@ -11,17 +11,19 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 
-public final class ForumMessageProcessorJ {
+public final class ForumMessageProcessor {
     private static final Logger log =
-        LogManager.getLogger(ForumMessageProcessorJ.class);
+        LogManager.getLogger(ForumMessageProcessor.class);
+
+    private static final String workingDatabaseURL = Constants.snitzDatabaseURL;
 
     /**
      * @param args
      */
     public static final void main(String[] args) {
 
-        log.info("ForumMessageProcessor processing file: "
-            + Constants.snitzDatabaseURL + "\n");
+        log.info(
+            "ForumMessageProcessor processing file: " + workingDatabaseURL);
 
         try {
             fixTextIssues("FORUM_TOPICS", "TOPIC_ID", "T_MESSAGE");
@@ -31,20 +33,20 @@ public final class ForumMessageProcessorJ {
             // run AFTER swapUrls
             fixUpImgTags("FORUM_TOPICS", "TOPIC_ID", "T_MESSAGE");
 
-             fixTextIssues("FORUM_REPLY", "REPLY_ID", "R_MESSAGE");
-             convertBBCodeToHtml("FORUM_REPLY", "REPLY_ID", "R_MESSAGE");
-             revertHtml("FORUM_REPLY", "REPLY_ID", "R_MESSAGE");
-             swapUrls("FORUM_REPLY", "REPLY_ID", "R_MESSAGE");
-             // run AFTER swapUrls
-             fixUpImgTags("FORUM_REPLY", "REPLY_ID", "R_MESSAGE");
+            fixTextIssues("FORUM_REPLY", "REPLY_ID", "R_MESSAGE");
+            convertBBCodeToHtml("FORUM_REPLY", "REPLY_ID", "R_MESSAGE");
+            revertHtml("FORUM_REPLY", "REPLY_ID", "R_MESSAGE");
+            swapUrls("FORUM_REPLY", "REPLY_ID", "R_MESSAGE");
+            // run AFTER swapUrls
+            fixUpImgTags("FORUM_REPLY", "REPLY_ID", "R_MESSAGE");
 
         }
         catch (Exception e) {
             e.printStackTrace();
         }
 
-        log.info("\nForumMessageProcessor finished processing file: "
-            + Constants.snitzDatabaseURL);
+        log.info("ForumMessageProcessor finished processing file: "
+            + workingDatabaseURL);
 
     } // main()
 
@@ -67,8 +69,7 @@ public final class ForumMessageProcessorJ {
         }
 
         // use Jackcess
-        final Database db =
-            DatabaseBuilder.open(new File(Constants.snitzDatabaseURL));
+        final Database db = DatabaseBuilder.open(new File(workingDatabaseURL));
         final Table table = db.getTable(tableName);
         final IndexCursor cursor =
             CursorBuilder.createCursor(table.getPrimaryKeyIndex());
@@ -324,8 +325,7 @@ public final class ForumMessageProcessorJ {
         }
 
         // use Jackcess
-        final Database db =
-            DatabaseBuilder.open(new File(Constants.snitzDatabaseURL));
+        final Database db = DatabaseBuilder.open(new File(workingDatabaseURL));
 
         final Table table = db.getTable(tableName);
         final IndexCursor cursor =
